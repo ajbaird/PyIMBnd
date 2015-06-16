@@ -1,0 +1,19 @@
+#################################################################
+# This function will update position of the immersed boundary
+# need to make this functional for input data. 
+################################################################
+
+def moveIB(array1, array2, Q):
+    
+    import numpy as np 
+    import matplotlib.pylab as plt
+    global time 
+    import fluid_constants
+
+    amp = width/8  #from Lauras test problem
+
+    for i in range(Q):
+        arrayt1[i,1] = width/2 + amp*sin(2*pi*time/time_final)
+        arrayt2[i,2] = width/4 + i*ds
+
+    return arrayt1 arrayt2 

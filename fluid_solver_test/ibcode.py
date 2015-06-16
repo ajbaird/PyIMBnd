@@ -1,0 +1,263 @@
+#####################################################################
+# Immersed boundary method python code 
+# Written by: Austin Baird, PhD candidate, UNC: Chapel Hill
+#####################################################################
+ 
+
+import numpy as np
+import matplotlib.pylab as plt
+#import move_boundary as mv_b
+#import moveIB  
+#import target_force as t_f 
+import initial_velocity as iv
+#import forcespread as fspread 
+import force_calc as fc
+import fluidsolve 
+import fluid_constants as f 
+#import record as rec 
+import matplotlib.colors as col
+import matplotlib.cm as cm 
+#import vorticity as vrt
+import subprocess
+import os 
+import sys 
+import time
+
+#####################################################################
+# Initialize parameters needed for computation
+# dt, meshsize and other things may be changed here 
+#####################################################################
+
+ptime = 0
+k = 0  # frame number
+# create a file to save the data: 
+print f.M
+output = open("error.txt",'a')
+#output.write('# storing important data values to report in writeup as grid is refined')
+#output.write('\n')
+#output.write('# divergence error, error between computed and exact value, dx, N, dt, time to compute 5 time steps' + '\n') 
+###############################################################################
+# Array initialization
+##############################################################################
+
+press = np.zeros((f.M,f.N))   #pressure size NXM matrix 
+u = np.zeros((f.M,f.N))   #x-directed velocity 
+v = np.zeros((f.M,f.N))   #y_directed velocity
+f1 = np.zeros((f.M,f.N))   #force in x_direction
+f2 = np.zeros((f.M,f.N))
+t = np.zeros(f.T)   #number of time steps
+mag = np.zeros((f.M,f.N)) #magnitude of velocity vector at each grid point
+
+#-----------------------Precomputed matrices from paper---------------------#
+
+w1 = np.zeros((f.M,f.N))
+w2 = np.zeros((f.M,f.N))
+a = np.zeros((f.M,f.N))
+b = np.zeros((f.M,f.N))
+c = np.zeros((f.M,f.N))
+d = np.zeros((f.M,f.N))
+
+#---------------------Matricies to store fourier transforms-----------------#
+
+uft = np.zeros((f.M,f.N))
+vft = np.zeros((f.M,f.N))
+pft = np.zeros((f.M,f.N))
+
+
+#---------------------Cartesian coordinate matrices--------------------------#
+
+xcoord = np.zeros((f.M,f.N))   #holds the x-value in the (i,j) position
+ycoord = np.zeros((f.M,f.N))   #holds the y-value in the (i,j) position 
+vort = np.zeros((f.M,f.N))
+#--------------------Boundary arrays and tartget arrays---------------------#
+
+
+b1 = np.zeros((f.Q,1))
+b2 = np.zeros((f.Q,1))
+b1t = np.zeros((f.Q,1))   #target points for the immersed boundary 
+b2t = np.zeros((f.Q,1))
+
+fb1 = np.zeros((f.Q,1))   #storing forces for each boundary point
+fb2 = np.zeros((f.Q,1))
+
+
+
+##########################################################################
+#Store cartesian values into array, for plotting
+#########################################################################
+#t1 = time.time()
+#for i in range(f.M):
+#    for j in range(f.N):
+#        xcoord[i,j] = j*f.dx   #storing values of array_position*dx to get x's cartesian values
+#        ycoord[i,j] = i*f.dx
+
+grid = np.mgrid[0:f.length:f.dx,0:f.length:f.dx]
+xcoord = grid[0]
+ycoord = grid[1]
+
+#t2 = time.time()
+#print xcoord
+#print ycoord
+#print 'cartesian values into array', t2-t1
+#print xcoord
+
+#################################################################################
+#Precompute matrices used to calculate u_hat, p_hat from Peskin and McQueen
+# 1996 eqns 14.52 and 14.51
+##################################################################################
+t1 = time.time()
+for i in range(f.M):
+    for j in range(f.N):
+        if i==0 and j==0 or i==0 and j==f.N/2:
+            a[i,j]==0
+            b[i,j]==0
+            c[i,j]==0
+        elif i==f.M/2 and j==0 or i == f.M/2 and j==f.N/2:
+            a[i,j] = 0
+            b[i,j] = 0
+            c[i,j] = 0
+
+        else:
+            a[i,j] = np.sin(2*np.pi*i/f.M)*np.sin(2*np.pi*i/f.M)/((np.sin(2*np.pi*i/f.M)*np.sin(2*np.pi*i/f.M)+np.sin(2*np.pi*j/f.N)*np.sin(2*np.pi*j/f.N)))
+            b[i,j] = np.sin(2*np.pi*i/f.M)*np.sin(2*np.pi*j/f.N)/((np.sin(2*np.pi*i/f.M)*np.sin(2*np.pi*i/f.M)+np.sin(2*np.pi*j/f.N)*np.sin(2*np.pi*j/f.N)))
+            c[i,j] = np.sin(2*np.pi*j/f.N)*np.sin(2*np.pi*j/f.N)/((np.sin(2*np.pi*i/f.M)*np.sin(2*np.pi*i/f.M)+np.sin(2*np.pi*j/f.N)*np.sin(2*np.pi*j/f.N)))
+
+for i in range(f.M):
+    for j in range(f.N):
+        d[i,j] = 1/(1+(4*f.nu*f.dt/(f.dx*f.dx))*(np.sin(np.pi*i/f.M)*np.sin(np.pi*i/f.M)+np.sin(np.pi*j/f.N)*np.sin(np.pi*j/f.N)))
+
+t2 = time.time()
+
+print 'precomputed matrix:', t2-t1
+# store initial velocity to test later in the code: 
+
+u, v, theta_1, theta_2 = iv.initial_velocity(u,v,f.M,f.N,f.dx,f.length,f.time)
+
+
+
+####################################################################################
+# Time stepping routine (this is the main routine for IB method)
+####################################################################################
+
+t0 = time.time()
+while f.time < f.time_final: 
+    
+    f1, f2 = fc.force_calc(f1,f2,f.mu,f.dx,f.length,f.p,f.time,f.M,f.N, theta_1, theta_2)
+
+    u,v,press = fluidsolve.fluidsolve(a,b,c,d,f1,f2,u,v,uft,vft,w1,w2,pft,f.time,press)
+
+    #print 'time step done'
+   
+ 
+
+    f.time = f.time + f.dt    #update time 
+    #print f.time
+    print 'time step done'
+#create a movie from the .png images generated above: 
+t1 = time.time()
+time = t1-t0
+print 'computed time is:',  t1-t0 
+
+
+command = ('mencoder',
+           'mf://*.png',
+           '-mf',
+           'type=png:w=800:h=600:fps=15',
+           '-ovc',
+           'lavc',
+           '-lavcopts',
+           'vcodec=mpeg4',
+           '-oac',
+           'copy',
+           '-o',
+           'output.avi')
+
+#os.spawnvp(os.P_WAIT, 'mencoder', command)
+
+#print "\n\nabout to execute:\n%s\n\n" % ' '.join(command)
+#subprocess.check_call(command)
+
+#print "\n\n The movie was written to 'output.avi'"
+
+#print "\n\n You may want to delete *.png now.\n\n"
+
+#compute the test fuctions: 
+
+u_test = np.zeros((f.M,f.N))
+v_test = np.zeros((f.M,f.N))
+
+u_test, v_test, theta_1, theta_2 = iv.initial_velocity(u_test,v_test,f.M,f.N,f.dx,f.length,f.time)
+
+#I've determinded that the test functions are right (for now) I think I may have been doing it wrong ealier thought 
+
+
+
+flu_err = np.zeros((f.M,f.N))
+flu_err1 = 0
+
+for i in range(f.M): 
+    for j in range(f.N): 
+        flu_err[i,j] =  (f.dx)*(f.dx)*np.sqrt((u[i,j]-u_test[i,j])**2 + (v[i,j] - v_test[i,j])**2)
+        #flu_err1 = flu_err1 + (f.dx)*(f.dx)*np.sqrt((u[i,j]-u_test[i,j])**2 + (v[i,j] - v_test[i,j])**2)
+    #print u 
+    #print u_test
+err = np.sum(flu_err)
+print err
+###############################################################
+
+#print out error:
+#print flu_err1 
+#print flu_err
+#plot analytic solution
+
+
+plt.figure(1)
+flumag = np.sqrt(u_test**2 + v_test**2)
+cmaxx = np.max(flumag)
+cmxx = np.max(cmaxx)
+plt.pcolor(flumag) 
+plt.colorbar()
+#plt.show()
+
+plt.figure(2)
+cmaxx = np.max(flu_err)
+cmxx = np.max(cmaxx)
+plt.pcolor(flu_err)
+plt.colorbar()
+plt.show()
+
+
+################################################################
+#want to calculate the divergence free error: 
+################################################################
+
+diverr=0
+
+for i in range(f.M): 
+    for j in range(f.N): 
+        #for the edge we compute special values 
+
+        jp1 = j+1
+        ip1 = i+1
+        i_1 = i-1
+        j_1 = j-1
+        
+        if i==f.M-1: 
+            ip1 = 0
+
+        if i==0:
+            i_1 = f.M-1
+
+        if j==f.N-1:
+            jp1 = 0
+
+        if j==0:
+            j_1 = f.N-1
+
+        diverr = (1/(2*f.dx))*(u[ip1,j]-u[i_1,j]+v[i,jp1]-v[i,j-1])
+
+print 'diverr='+str(diverr)
+
+output.write(str(diverr) + ' ' + str(err) + ' ' + str(f.dx) + ' ' + str(f.N) + ' ' + str(f.dt) +' ' + str(time))
+output.write('\n')
+print 'wrote data'

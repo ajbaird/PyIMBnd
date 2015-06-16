@@ -1,0 +1,154 @@
+#-------------------------------------publishable graph of pumping data----------------------------#
+#
+# This python code should produce a publishable .eps graph which will be 
+# embedded into the latex code without scaling issues. If things seems to 
+# to be scaled strangely use the \showthe\columnwidth to determine the appropriate
+# width of the figure. then change 'figsize' accordingly. 
+#-------------------------------------------------------------------------------------------------#
+
+from numpy import *
+import matplotlib.pylab as plt
+
+##unpack two column comma separated data 
+
+x, y = loadtxt('GFR', unpack=True)
+xshort, yshort = loadtxt('GFR_short', unpack=True)
+x1, y1 = loadtxt('RBF', unpack=True)
+x1short, y1short = loadtxt('RBF_short', unpack=True)
+x2, urine_short = loadtxt('urine_short', unpack = True) 
+x3, urine_long = loadtxt('urine_long', unpack = True) 
+x4, sodium_short = loadtxt('sodium_short', unpack = True)
+x5, sodium_long = loadtxt('sodium_long', unpack = True)
+#pos1, urine1 = loadtxt('./rpp80pvr15/fvCD', unpack = True) 
+#pos2, urine2 = loadtxt('./rpp80pvr25/fvCD', unpack = True) 
+
+
+# compute fractional excretion: 
+alpha = 162.0 #mM of nacl going into the decending limb
+
+
+Fena_short = ((sodium_short)/(yshort*alpha))
+Fena_long = ((sodium_long)/(y*alpha))
+
+
+
+##graph parameters 
+
+fig_width_pt = 360.0      #this is the width of the figure in latex, make sure its up to date to avoid scaling issues. 
+inches_in_pt = 1.0/72.27      #This computes inches in a single point 
+golden_mean = (sqrt(5)-1.0)/2.0    #This makes the height to width ratio pretty
+fig_width = fig_width_pt*inches_in_pt    #width of figure
+fig_height = golden_mean*fig_width    # height of figure
+fig_size = [fig_width,fig_height]    #putting these in an array 
+
+#change parameters
+
+plt.rc('font', family='serif')
+params = {'backend': 'ps',
+          'axes.labelsize': 10,
+          'text.fontsize': 10,
+          'legend.fontsize': 10,
+          'xtick.labelsize': 8,
+          'ytick.labelsize': 8,
+          'text.usetex': True,
+          'figure.figsize': fig_size}
+
+plt.rcParams.update(params)
+
+#plot data
+
+plt.figure(1)
+plt.clf
+plt.plot(x,y,'ro-', label='long')
+plt.plot(xshort,yshort,'bD-', label = 'short')
+plt.xlabel(r"filtration constant ($k_f$)", fontsize=10)
+plt.ylabel(r"glomerular filtration rate $(\frac{nL}{min})$", fontsize=10)
+#plt.subplots_adjust(left=0.16)
+#plt.subplots_adjust(top=0.1)
+plt.title(r"glomerular filtration rate. pvr=3.75 (mmHg)", fontsize=10)    #This needs to change with every graph
+plt.grid(True)
+plt.legend(loc=2)
+#plt.axis([5,55,25,55])   #Change this to fit the data in the graph
+plt.savefig('figGFR.eps', bbox_inches='tight')
+#plt.show()
+
+plt.figure(2)
+plt.clf
+plt.plot(x1,y1,'ro-', label='short')
+plt.plot(x1short,y1short,'bD-', label = 'long')
+plt.xlabel(r"filtration constant ($k_f$)", fontsize=10)
+plt.ylabel(r"renal blood flow $(\frac{nL}{min})$", fontsize=10)
+#plt.subplots_adjust(left=0.16)
+#plt.subplots_adjust(top=0.1)
+plt.title(r"renal blood flow. pvr = 3.75 (mmHg)", fontsize=10)    #This needs to change with every graph
+plt.grid(True)
+plt.legend(loc=2)
+#plt.axis([5,55,120,300])   #Change this to fit the data in the graph
+plt.savefig('figRBF.eps', bbox_inches='tight')
+#plt.show()
+
+plt.figure(3)
+plt.clf
+plt.plot(x2,urine_short,'bo-', label='short')
+plt.plot(x3,urine_long,'bo-', label='long')
+#plt.plot(x1,z1,'bD-', label = 'long')
+plt.xlabel(r"filtration constant ($k_f$)", fontsize=10)
+plt.ylabel(r"urine flow ($\frac{nL}{min}$)", fontsize=10)
+#plt.subplots_adjust(left=0.16)
+#plt.subplots_adjust(top=0.1)
+plt.title(r"urine flow. pvr = 3.75 (mmHg)", fontsize=10)    #This needs to change with every graph
+plt.grid(True)
+plt.legend(loc=2)
+#plt.axis([5,55,120,300])   #Change this to fit the data in the graph
+plt.savefig('urine.eps', bbox_inches='tight')
+#plt.show()
+
+plt.figure(4)
+plt.clf
+plt.plot(x4,sodium_short,'bD-', label='short')
+plt.plot(x5,sodium_long,'bD-', label='long')
+#plt.plot(x1,z1,'bD-', label = 'long')
+plt.xlabel(r"filtration constant ($k_f$)", fontsize=10)
+plt.ylabel(r"Na-ex $(\frac{pmole}{min})$", fontsize=10)
+#plt.subplots_adjust(left=0.16)
+#plt.subplots_adjust(top=0.1)
+plt.title(r"sodium excretion. pvr=3.75 (mmHg)", fontsize=10)    #This needs to change with every graph
+plt.grid(True)
+plt.legend(loc=2)
+#plt.axis([5,55,120,300])   #Change this to fit the data in the graph
+plt.savefig('sodium.eps', bbox_inches='tight')
+#plt.show()
+
+#plot fractional excretion: 
+
+plt.figure(5)
+plt.clf
+plt.plot(x,Fena_short,'ro-', label='short')
+plt.plot(x,Fena_long,'bD-', label = 'long')
+plt.xlabel(r"filtration constant ($k_f$)", fontsize=10)
+plt.ylabel(r"fractional excretion Na", fontsize=10)
+#plt.subplots_adjust(left=0.16)
+#plt.subplots_adjust(top=0.1)
+plt.title(r"pvr=3.75 (mmHg)", fontsize=10)    #This needs to change with every graph
+plt.grid(True)
+plt.legend(loc=2)
+#plt.axis([5,55,25,55])   #Change this to fit the data in the graph
+plt.savefig('figFena.eps', bbox_inches='tight')
+#plt.show()
+
+
+#plt.figure(5)
+#plt.clf
+#plt.plot(pos2,urine2,'ro-', label='urine flow')
+#plt.plot(x1,z1,'bD-', label = 'long')
+#plt.xlabel(r"$x$ (depth) tube position", fontsize=10)
+#plt.ylabel(r"urine flow", fontsize=10)
+#plt.subplots_adjust(left=0.16)
+#plt.subplots_adjust(top=0.1)
+#plt.title(r"urine flow along tube", fontsize=10)    #This needs to change with every graph
+#plt.grid(True)
+#plt.legend()
+#plt.axis([5,55,120,300])   #Change this to fit the data in the graph
+#plt.savefig('rpp80pvr25.eps', bbox_inches='tight')
+#plt.show()
+

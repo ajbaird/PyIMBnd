@@ -1,0 +1,11 @@
+############################################################################
+#this computes forces on the boundary due to hookes law stiff*displacement
+############################################################################
+
+def target_force(stiff, b1, b2, bt1, bt2, fb1, fb2, Q):
+
+    for i in range(Q):
+        force1[i,1] = stiff*(bt1[i,1] - b1[i,1])   #spring constant*displacement between target and boundary points
+        force2[i,1] = stiff*(bt2[i,1] - b2[i,1])
+
+    return force1 force2 

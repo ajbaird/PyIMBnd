@@ -1,0 +1,211 @@
+#########################################################################################################
+#
+# This is a two dimensional immersed boundary method code. The fluid solver uses an fft, so the domain 
+# must be periodic. New fluid solvers will be added as it gets updated. Right now the boundary is moved 
+# via target points (springs and beams forthcoming), geometry of target points can be specified. 
+# Preformance testing and error testing has been completed and documented (check documentation). 
+# this is a first order method near the boundary and a second order method away from the boundary. 
+# to run: 
+#     Be sure that a .txt file containing your boundary points is present, then simply type: 
+#     python immersed_boundary.py  
+# 
+# movement of the boundary can be manipulated in the move_ib function within the code (see documentation) 
+# a rubber band example, and a moving rod are both simple examples included in documentation.            
+#
+# Written by: Austin Baird, UNC Chapel Hill. Part of a PhD thesis work on immersed boundary and pumping 
+# applications. 
+##########################################################################################################
+
+import numpy as np
+
+#########################################################################################################
+# Begin with function definitions
+#########################################################################################################
+
+###############################################################################################
+#Store fluid variables used in all the definitions Change these variables to control fluid dynamics
+############################################################################################
+
+def fluid_constants():
+#spatial grid size
+#For this version of the code, M should equal N, and length should equal
+#width
+    N = 32
+    M = 32
+
+    Q = M
+
+    #Mechanical variables
+    mu = 3.0  #dynamic viscosity
+    p= 2.0    #density
+    nu = mu/p #kinematic viscosity
+    stiff = 3.0   #stiffness of springs between boundary points
+    
+    #Spatial variables
+    length = 0.4  #length of domain
+    width = 0.4   #width of domain
+    dx = length/N        #absolute length of grid cell  
+    ds = length/(2*N)   #boundary step  
+    dt = dx*dx/nu      #time step  
+
+    #new timing parameter values
+    time_final = 5*dt 	#total time
+    L = 20.0 #number of times to graph velocity and pressure
+    graphtime = time_final/L   #graphs every dptime  
+    vel_time = time_final/(100*20)   #output forces? 
+    time = 0
+    T = np.ceil(time_final/dt)
+    ptime = 0   #printing time
+
+
+##################################################################################################
+# function to move the immersed boundary. Right now it is a moving rod. Array 1/2 hold moving points 
+# Q is the number of points along the boundary. 
+##################################################################################################
+def moveIB(array1, array2, Q):
+    import fluid_constants as f
+
+    amp = f.width/8  #from Lauras test problem
+    
+    for i in range(f.Q):
+        array1[i] = f.width/2 + amp*np.sin(2*np.pi*f.time/f.time_final)
+        array2[i] = f.width/4 + i*f.ds
+
+    return array1, array2 
+
+############################################################################
+#this computes forces on the boundary due to hookes law stiff*displacement
+############################################################################
+
+def target_force(b1, b2, bt1, bt2, fb1, fb2, stiff, Q):
+
+    for i in range(Q):
+        fb1[i,0] = stiff*(bt1[i,0] - b1[i,0])   #spring constant*displacement between target and boundary points
+        fb2[i,0] = stiff*(bt2[i,0] - b2[i,0])
+
+    #print fb1, fb2
+    return fb1, fb2 
+
+#######################################################################################################################
+# This code will spread the force generated at the boundary  due to the springs,to neighboring fluid gird points 
+# array1/2 are arrays of boundary points (x,y points), fb1/2 are the forces  and Q are the total points. f1/2 are updated
+#######################################################################################################################
+
+def forcespread(array1, array2, fb1, fb2, f1, f2, Q):
+    
+    import numpy as np
+    import matplotlib.pylab as plt 
+
+
+    import fluid_constants as f 
+
+    # first determine which cartesian grid point we are near
+
+    for i in range(Q):
+        x1 = np.ceil(array1[i,0]/f.dx)
+        x2 = np.ceil(array2[i,0]/f.dx)
+        # spred forces
+        for k in range(4):
+            for h in range(4):
+                ii = x1+1-k    
+                jj = x2+1-h
+
+                # Check to see if near boundary if it is shift it to other side of the domain (periodic bndry conditions)
+
+                if ii == -1:
+                    ii = f.M-1
+                if ii == -2:
+                    ii = f.M-2 
+                if ii == -3:
+                    ii = f.M-3
+                if ii == f.M:
+                    ii = 0 
+                if ii == f.M+1:
+                    ii = 1
+                if ii == f.M+2:
+                    ii = 2 
+
+                # now for the jj iterator
+
+                if jj == -1:
+                    jj = f.N-1
+                if jj == -2:
+                    jj = f.N-2
+                if jj == -3:
+                    jj = f.N-3 
+                if jj == f.N:
+                    jj = 0 
+                if jj == f.N+1:
+                    jj = 1
+                if jj == f.N+2:
+                    jj = 2
+
+                # spread forces with a delta function 
+                
+
+                f1[ii,jj] = f1[ii,jj]+fb1[i,0]*(1/(4*f.dx))*(1+np.cos((np.pi/(2*f.dx))*(f.dx*(x1-k)-array1[i,0])))*(1/(4*f.dx))*(1+np.cos((np.pi/(2*f.dx))*(f.dx*(x2-h)-array2[i,0])))*f.ds  
+
+                f2[ii,jj] = f2[ii,jj]+fb2[i,0]*(1/(4*f.dx))*(1+np.cos((np.pi/(2*f.dx))*(f.dx*(x1-k)-array1[i,0])))*(1/(4*f.dx))*(1+np.cos((np.pi/(2*f.dx))*(f.dx*(x2-h)-array2[i,0])))*f.ds
+
+
+    return f1, f2 
+
+
+
+####################################################################
+# This file takes in the forces from the boundary and updates 
+# pressure (press) and fluid velocity (u,v) accordingly
+###################################################################
+
+def fluidsolve(a,b,c,d,f1,f2,u,v,uft,vft,w1,w2,pft,time,press):
+    import numpy as np 
+    import matplotlib.pylab as plt 
+    import fluid_constants as f
+    import makew 
+
+    # First thing to do is to calculate w1, w2 and take the fft of them 
+    w1, w2 = makew.makew(w1,w2,f1,f2,u,v)
+
+    # After calculating w1,w2 we can now begin taking the fft of our arrays
+    w1ft = np.fft.fft2(w1)
+    w2ft = np.fft.fft2(w2)
+    a = a + 0j
+    b = b + 0j
+    c = c + 0j
+    d = d + 0j
+    uft = uft + 0j 
+    vft = vft + 0j
+    
+    for i in range(f.M):
+        for j in range(f.N):
+            uft[i,j] = (w1ft[i,j] - (a[i,j]*w1ft[i,j] + b[i,j]*w2ft[i,j]))*d[i,j]
+            vft[i,j] = (w2ft[i,j] - (b[i,j]*w1ft[i,j] + c[i,j]*w2ft[i,j]))*d[i,j]
+    # Now calculate the pressure, need it to be able to store complex values
+    pft = pft + 0j
+
+    for i in range(f.M):
+        for j in range(f.N):
+            if i==0 and j==0 or i==0 and j==f.N/2:
+                pft[i,j] = 0
+            elif i==f.M/2 and j==0 or i ==f.M/2 and j==f.N/2:
+                pft[i,j] = 0
+            else: 
+                pft[i,j] = ((f.p*f.dx/f.dt)*(np.sin(2*np.pi*i/f.M)*np.imag(w1ft[i,j]) + np.sin(2*np.pi*(j)/f.N)*np.imag(w2ft[i,j])))/((np.sin(2*np.pi*i/f.N)*np.sin(2*np.pi*i/f.M)) + np.sin(2*np.pi*j/f.N)*np.sin(2*np.pi*j/f.N))
+                pft[i,j] = pft[i,j] - np.sqrt(np.complex(-1))* ((f.p*f.dx/f.dt)*(np.sin(2*np.pi*i/f.M)*np.real(w1ft[i,j]) + np.sin(2*np.pi*(j)/f.N)*np.real(w2ft[i,j])))/((np.sin(2*np.pi*i/f.N)*np.sin(2*np.pi*i/f.M)) + np.sin(2*np.pi*j/f.N)*np.sin(2*np.pi*j/f.N))
+    
+
+# We can now take the inverse transform to get u,v, and press 
+
+    u = np.fft.ifft2(uft)
+    v = np.fft.ifft2(vft)
+    press = np.fft.ifft2(pft)
+
+
+# we now want to select the real portions of these arrays, ideally the imaginary portion is small 
+
+    u = np.real(u) 
+    v = np.real(v) 
+    press = np.real(press)
+
+    return u, v, press 
+

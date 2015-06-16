@@ -1,0 +1,68 @@
+#####################################################################################################
+# This function will be used to output the data in .vtf format
+# INputs are u/v velocities, vorticity, time step counter k, and boundary points. Each of these will be output 
+# in a .vtk file for each 'printing' time step. This will include the appropriate header.
+####################################################################################################
+
+
+def record(u,v,vort,press,f1,f2,b1,b2,k): 
+
+    import numpy as np 
+    import os
+    import fluid_constants as f 
+
+# first we wnat to name the files appropriately. 
+
+    save_v = str('velv_binary' % k) + '.vtk'
+    save_u = str('velu_binary' % k) + '.vtk'
+    save_vort = str('vort_binary' % k) + '.vtk'
+    save_pressure = str('press_binary' % k) + '.vtk'
+    save_forcesx = str('forcesx_binary' % k) + '.vtk'
+    save_forcesy = str('forcesx_binary' % k) + '.vtk'
+
+# now open the files to save the data to. 
+
+    output1 = open(os.path.join("./velv",save_v), 'w')
+    output2 = open(os.path.join("./velu",save_u), 'w')    
+    output3 = open(os.path.join("./vorticity",save_vort), 'w')
+    output4 = open(os.path.join("./pressure",save_pressure), 'w')
+    output5 = open(os.path.join("./forcesx",save_forcesx), 'w')
+    output6 = open(os.path.join("./forcesy",save_forcesy), 'w')
+
+# begin to output the data into their designated files 
+    
+    mult = f.M*f.N
+    multstr = str(mult)
+#header files need to be added first: 
+
+    output1.write('ASCII' + '\n' + 'DATASET STRUCTURED_POINTS' + '\n' + 'DIMENSIONS' + ' ' + str(f.M) + ' ' + str(f.N) + ' ' + str(1) + '\n' + 'SPACING' + ' ' + str(f.dx) + ' ' + str(f.dx) + ' ' + str(1) + '\n' + 'ORIGIN' + ' ' +  str(0) + ' ' + str(0) + ' ' + str(0) + '\n' + 'POINT_DATA' + ' ' + multstr + '\n' + 'SCALARS' + ' ' + 'velv' + ' ' + 'float' + str(1) + '\n' + 'LOOKUP_TABLE' + ' ' + 'default') 
+
+    output2.write('ASCII' + '\n' + 'DATASET STRUCTURED_POINTS' + '\n' + 'DIMENSIONS' + ' ' + str(f.M) + ' ' + str(f.N) + ' ' + str(1) + '\n' + 'SPACING' + ' ' + str(f.dx) + ' ' + str(f.dx) + ' ' + str(1) + '\n' + 'ORIGIN' + ' ' +  str(0) + ' ' + str(0) + ' ' + str(0) + '\n' + 'POINT_DATA' + ' ' + multstr + '\n' + 'SCALARS' + ' ' + 'velu' + ' ' + 'float' + str(1) + '\n' + 'LOOKUP_TABLE' + ' ' + 'default') 
+
+    output3.write('ASCII' + '\n' + 'DATASET STRUCTURED_POINTS' + '\n' + 'DIMENSIONS' + ' ' + str(f.M) + ' ' + str(f.N) + ' ' + str(1) + '\n' + 'SPACING' + ' ' + str(f.dx) + ' ' + str(f.dx) + ' ' + str(1) + '\n' + 'ORIGIN' + ' ' +  str(0) + ' ' + str(0) + ' ' + str(0) + '\n' + 'POINT_DATA' + ' ' + multstr + '\n' + 'SCALARS' + ' ' + 'vorticity' + ' ' + 'float' + str(1) + '\n' + 'LOOKUP_TABLE' + ' ' + 'default') 
+
+    output4.write('ASCII' + '\n' + 'DATASET STRUCTURED_POINTS' + '\n' + 'DIMENSIONS' + ' ' + str(f.M) + ' ' + str(f.N) + ' ' + str(1) + '\n' + 'SPACING' + ' ' + str(f.dx) + ' ' + str(f.dx) + ' ' + str(1) + '\n' + 'ORIGIN' + ' ' +  str(0) + ' ' + str(0) + ' ' + str(0) + '\n' + 'POINT_DATA' + ' ' + multstr + '\n' + 'SCALARS' + ' ' + 'pressure' + ' ' + 'float' + str(1) + '\n' + 'LOOKUP_TABLE' + ' ' + 'default') 
+
+    output5.write('ASCII' + '\n' + 'DATASET STRUCTURED_POINTS' + '\n' + 'DIMENSIONS' + ' ' + str(f.M) + ' ' + str(f.N) + ' ' + str(1) + '\n' + 'SPACING' + ' ' + str(f.dx) + ' ' + str(f.dx) + ' ' + str(1) + '\n' + 'ORIGIN' + ' ' +  str(0) + ' ' + str(0) + ' ' + str(0) + '\n' + 'POINT_DATA' + ' ' + multstr + '\n' + 'SCALARS' + ' ' + 'forcesx' + ' ' + 'float' + str(1) + '\n' + 'LOOKUP_TABLE' + ' ' + 'default') 
+
+    output6.write('ASCII' + '\n' + 'DATASET STRUCTURED_POINTS' + '\n' + 'DIMENSIONS' + ' ' + str(f.M) + ' ' + str(f.N) + ' ' + str(1) + '\n' + 'SPACING' + ' ' + str(f.dx) + ' ' + str(f.dx) + ' ' + str(1) + '\n' + 'ORIGIN' + ' ' +  str(0) + ' ' + str(0) + ' ' + str(0) + '\n' + 'POINT_DATA' + ' ' + multstr + '\n' + 'SCALARS' + ' ' + 'forcesy' + ' ' + 'float' + str(1) + '\n' + 'LOOKUP_TABLE' + ' ' + 'default') 
+
+
+
+#print the data points: 
+
+    for i in range(f.N):
+        for j in range(f.M): 
+            output1.write(str(v[i,j]))
+            output2.write(str(u[i,j]))
+            output3.write(str(vort[i,j]))           
+            output4.write(str(press[i,j]))
+            output5.write(str(f1[i,j]))
+            output6.write(str(f2[i,j]))
+            if j==M-1:
+                output1.write('\n')
+                output2.write('\n')
+                output3.write('\n')
+                output4.write('\n')
+                output5.write('\n')
+                output6.write('\n')
